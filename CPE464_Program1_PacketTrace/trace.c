@@ -40,23 +40,30 @@
 
 
 /*
+ * Structs: 
+ */
+
+
+
+
+/*
  * Function to read ethernet frame headers
  * Input: data block and offset to begin reading from
  * Output: an int defining the type of packet encapsulated within
  *     and print to screen ethernet header information
  */
 int readEther(uint8_t *data, uint32_t *offset) {
-    struct ether_addr *dest;
-    struct ether_addr *src;
+    struct ether_addr dest;
+    struct ether_addr src;
     uint16_t type;
     char *typeString;
     int nextPack;
     uint8_t *curPoint = data + *offset;
     
-    //copy in the data incrementing the pointer simultaneously 
-    memcpy(dest, curPoint, 6);
+    // copy in the data incrementing the pointer simultaneously 
+    memcpy(&dest, curPoint, 6);
     curPoint += 6;
-    memcpy(src, curPoint, 6);
+    memcpy(&src, curPoint, 6);
     curPoint += 6;
     memcpy(&type, curPoint, 2);
     
@@ -70,8 +77,8 @@ int readEther(uint8_t *data, uint32_t *offset) {
     }
     
     fprintf(stdout, "   Ethernet Header\n");
-    fprintf(stdout, "       Dest MAC: %s\n", ether_ntoa(dest));
-    fprintf(stdout, "       Source MAC: %s\n", ether_ntoa(src));
+    fprintf(stdout, "       Dest MAC: %s\n", ether_ntoa(&dest));
+    fprintf(stdout, "       Source MAC: %s\n", ether_ntoa(&src));
     fprintf(stdout, "       Type: %s\n\n", typeString);
     
     *offset = 14;
@@ -85,8 +92,8 @@ int readEther(uint8_t *data, uint32_t *offset) {
  * Output: print to screen details of ARP header
  */
 void readARP(uint8_t *data, uint32_t *offset) {
-    struct ether_addr *sendMAC;
-    struct ether_addr *targMAC;
+    struct ether_addr sendMAC;
+    struct ether_addr targMAC;
     struct in_addr sendIP;
     struct in_addr targIP;
     uint16_t op;
@@ -99,11 +106,11 @@ void readARP(uint8_t *data, uint32_t *offset) {
     //copy in the useful data
     memcpy(&op, curPoint, 2);
     curPoint += 2;
-    memcpy(sendMAC, curPoint, 6);
+    memcpy(&sendMAC, curPoint, 6);
     curPoint += 6;
     memcpy(&sendIP, curPoint, 4);
     curPoint += 4;
-    memcpy(targMAC, curPoint, 6);
+    memcpy(&targMAC, curPoint, 6);
     curPoint += 6;
     memcpy(&targIP, curPoint, 4);
     
@@ -116,9 +123,9 @@ void readARP(uint8_t *data, uint32_t *offset) {
     
     fprintf(stdout, "   ARP header\n");
     fprintf(stdout, "       Opcode: %s\n", opString);
-    fprintf(stdout, "       Sender MAC: %s\n", ether_ntoa(sendMAC));
+    fprintf(stdout, "       Sender MAC: %s\n", ether_ntoa(&sendMAC));
     fprintf(stdout, "       Sender IP: %s\n", inet_ntoa(sendIP));
-    fprintf(stdout, "       Target MAC: %s\n", ether_ntoa(targMAC));
+    fprintf(stdout, "       Target MAC: %s\n", ether_ntoa(&targMAC));
     fprintf(stdout, "       Target IP: %s\n\n", inet_ntoa(targIP));
     
     *offset += 28;
@@ -194,6 +201,8 @@ void readTCP(uint8_t *data, uint32_t *offset) {
  */
 int readIP(uint8_t *data, uint32_t *offset) {
     
+    
+    
     return (1);
 }
 
@@ -233,7 +242,9 @@ int main(int argc, char *argv[]) {
     char *file = argv[1];
     char *errbuf;
     pcap_t *handler;
-    struct pcap_pkthdr pktHeader;
+    struct pcap_pkthdr *pktHeader;
+    struct pcap_pkthdr pktHead;
+    pktHeader = &pktHead;
     const uint8_t *pktData;
     uint8_t err;
     uint32_t pktNum;
@@ -250,8 +261,8 @@ int main(int argc, char *argv[]) {
     }
     
     while ((err = pcap_next_ex(handler, &pktHeader, &pktData))) {
-        fprintf(stdout, "\nPacket number: %u  Packet Len: %u\n\n", pktNum, pktHeader.len);
-        readPacketData(&pktData, pktHeader.len);
+        fprintf(stdout, "\nPacket number: %u  Packet Len: %u\n\n", pktNum, pktHead.len);
+        readPacketData(&pktData, pktHead.len);
     }
     if (err != -2) {
         fprintf(stderr, "Not able to finish read\n");

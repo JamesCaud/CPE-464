@@ -40,10 +40,62 @@
 
 
 /*
- * Structs: 
+ * Structs: All headers for Ethernet, ARP, UDP, ICMP, IP, and TCP 
  */
+struct etherHead {
+    struct ether_addr dest;
+    struct ether_addr src;
+    uint16_t type;
+}
 
+struct arpHead {
+    uint16_t hwType;
+    uint16_t protocolType;
+    uint8_t hwAddLen;
+    uint8_t protocolAddLen;
+    uint8_t op;
+    struct ether_addr sendMAC;
+    struct in_addr sendIP;
+    struct ether_addr targMAC;
+    struct in_addr targIP;
+}
 
+struct icmpHead {
+    uint8_t type;
+    uint8_t code;
+    uint16_t icmpChecksum;
+}
+
+struct udpHead {
+    uint16_t srcPort;
+    uint16_t destPort;
+    uint16_t udpLen;
+    uint16_t udpChecksum;
+}
+
+struct ipHead {
+    uint8_t version_IHL;
+    uint8_t type;
+    uint16_t packLen;
+    uint16_t id;
+    uint16_t flags_frag;
+    uint8_t ttl;
+    uint8_t protocol;
+    uint16_t ipChecksum;
+    struct in_addr src;
+    struct in_addr dest;
+}
+
+struct tcpHead {
+    uint16_t srcPort;
+    uint16_t destPort;
+    uint32_t seqNum;
+    uint32_t ackNum;
+    uint16_t dataOff_reserv_flags;
+    uint16_t windowSize;
+    uint16_t tcpChecksum;
+    uint16_t urgPointer;
+}
 
 
 /*
@@ -53,33 +105,26 @@
  *     and print to screen ethernet header information
  */
 int readEther(uint8_t *data, uint32_t *offset) {
-    struct ether_addr dest;
-    struct ether_addr src;
-    uint16_t type;
     char *typeString;
     int nextPack;
-    uint8_t *curPoint = data + *offset;
+    etherHead *header = malloc(sizeof(etherHeader));
     
-    // copy in the data incrementing the pointer simultaneously 
-    memcpy(&dest, curPoint, 6);
-    curPoint += 6;
-    memcpy(&src, curPoint, 6);
-    curPoint += 6;
-    memcpy(&type, curPoint, 2);
+    // copy in all header data 
+    memcpy(header, data, sizeof(etherHeader));
     
-    if (type == 0x0800) {
+    if (header->type == 0x0800) {
         typeString = "IP";
         nextPack = IP_PACK;
     }
-    else if (type == 0x0806) {
+    else if (header->type == 0x0806) {
         typeString = "ARP";
         nextPack = ARP_PACK;
     }
     
-    fprintf(stdout, "   Ethernet Header\n");
-    fprintf(stdout, "       Dest MAC: %s\n", ether_ntoa(&dest));
-    fprintf(stdout, "       Source MAC: %s\n", ether_ntoa(&src));
-    fprintf(stdout, "       Type: %s\n\n", typeString);
+    fprintf(stdout, "	Ethernet Header\n");
+    fprintf(stdout, "		Dest MAC: %s\n", ether_ntoa(&(header->dest)));
+    fprintf(stdout, "		Source MAC: %s\n", ether_ntoa(&(header->src)));
+    fprintf(stdout, "		Type: %s\n\n", typeString);
     
     *offset = 14;
     

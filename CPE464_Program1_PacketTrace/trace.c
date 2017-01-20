@@ -7,7 +7,7 @@
  * Class: CPE 464 Networks
  * Professor: Hugh Smith
  * DateCreated: 16 Jan 2017
- * LastModified: 16 Jan 2017
+ * LastModified: 19 Jan 2017
  */
 
 /* 
@@ -15,6 +15,7 @@
  * arpa/inet.h for inet_ntoa which translates bytewise ips to strings
  * netinet/ether.h for ether_ntoa which is bytewise MAC -> string
  * sys/types and sys/socket for transmission and storage for ntoa's
+ * stdlib.h for malloc
  * stdio.h for printing to system out
  * sting.h for memcpy
  */
@@ -25,6 +26,7 @@
 #include <net/ethernet.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -32,11 +34,11 @@
 #pragma pack(1)
 
 /* Define: All return values from de-encapsulation*/
-#define IP_PACK -5
-#define ARP_PACK -6
-#define TCP_PACK -7
-#define UDP_PACK -8
-#define ICMP_PACK -9
+#define IP_PACK 5
+#define ARP_PACK 6
+#define TCP_PACK 7
+#define UDP_PACK 8
+#define ICMP_PACK 9
 
 
 /*
@@ -46,7 +48,7 @@ struct etherHead {
     struct ether_addr dest;
     struct ether_addr src;
     uint16_t type;
-}
+};
 
 struct arpHead {
     uint16_t hwType;
@@ -58,20 +60,20 @@ struct arpHead {
     struct in_addr sendIP;
     struct ether_addr targMAC;
     struct in_addr targIP;
-}
+};
 
 struct icmpHead {
     uint8_t type;
     uint8_t code;
     uint16_t icmpChecksum;
-}
+};
 
 struct udpHead {
     uint16_t srcPort;
     uint16_t destPort;
     uint16_t udpLen;
     uint16_t udpChecksum;
-}
+};
 
 struct ipHead {
     uint8_t version_IHL;
@@ -84,18 +86,19 @@ struct ipHead {
     uint16_t ipChecksum;
     struct in_addr src;
     struct in_addr dest;
-}
+};
 
 struct tcpHead {
     uint16_t srcPort;
     uint16_t destPort;
     uint32_t seqNum;
     uint32_t ackNum;
-    uint16_t dataOff_reserv_flags;
+    uint8_t dataOff_reserv;
+    uint8_t flags;
     uint16_t windowSize;
     uint16_t tcpChecksum;
     uint16_t urgPointer;
-}
+};
 
 
 /*
@@ -107,16 +110,16 @@ struct tcpHead {
 int readEther(uint8_t *data, uint32_t *offset) {
     char *typeString;
     int nextPack;
-    etherHead *header = malloc(sizeof(etherHeader));
+    struct etherHead *header = malloc(sizeof(struct etherHead));
     
     // copy in all header data 
-    memcpy(header, data, sizeof(etherHeader));
+    memcpy(header, data, sizeof(struct etherHead));
     
-    if (header->type == 0x0800) {
+    if (ntohs(header->type) == 0x0800) {
         typeString = "IP";
         nextPack = IP_PACK;
     }
-    else if (header->type == 0x0806) {
+    else if (ntohs(header->type) == 0x0806) {
         typeString = "ARP";
         nextPack = ARP_PACK;
     }
@@ -137,44 +140,26 @@ int readEther(uint8_t *data, uint32_t *offset) {
  * Output: print to screen details of ARP header
  */
 void readARP(uint8_t *data, uint32_t *offset) {
-    struct ether_addr sendMAC;
-    struct ether_addr targMAC;
-    struct in_addr sendIP;
-    struct in_addr targIP;
-    uint16_t op;
     char *opString;
-    uint8_t *curPoint = data + *offset;
+    struct arpHead *header = malloc(sizeof(struct arpHead));
     
-    // move the pointer to the opcode bytes
-    curPoint += 6;
+    memcpy(header, data + *offset, sizeof(struct arpHead));
     
-    //copy in the useful data
-    memcpy(&op, curPoint, 2);
-    curPoint += 2;
-    memcpy(&sendMAC, curPoint, 6);
-    curPoint += 6;
-    memcpy(&sendIP, curPoint, 4);
-    curPoint += 4;
-    memcpy(&targMAC, curPoint, 6);
-    curPoint += 6;
-    memcpy(&targIP, curPoint, 4);
-    
-    if (op == 0x0001) {
+    if (ntohl(header->op) == 0x0001) {
         opString = "Request";
     }
-    else if (op == 0x0002) {
+    else if (ntohl(header->op) == 0x0002) {
         opString = "Reply";
     }
     
     fprintf(stdout, "   ARP header\n");
     fprintf(stdout, "       Opcode: %s\n", opString);
-    fprintf(stdout, "       Sender MAC: %s\n", ether_ntoa(&sendMAC));
-    fprintf(stdout, "       Sender IP: %s\n", inet_ntoa(sendIP));
-    fprintf(stdout, "       Target MAC: %s\n", ether_ntoa(&targMAC));
-    fprintf(stdout, "       Target IP: %s\n\n", inet_ntoa(targIP));
+    fprintf(stdout, "       Sender MAC: %s\n", ether_ntoa(&arpHead->sendMAC));
+    fprintf(stdout, "       Sender IP: %s\n", inet_ntoa(arpHead->sendIP));
+    fprintf(stdout, "       Target MAC: %s\n", ether_ntoa(&arpHead->targMAC));
+    fprintf(stdout, "       Target IP: %s\n\n", inet_ntoa(arpHead->targIP));
     
-    *offset += 28;
-    
+    *offset += 28;    
     return;
 }
 
@@ -184,15 +169,15 @@ void readARP(uint8_t *data, uint32_t *offset) {
  * Output: print to screen header information
  */
 void readICMP(uint8_t *data, uint32_t *offset) {
-    uint8_t type;
+    struct icmpHead *header = malloc(sizeof(icmpHead));
     char *typeString;
     
-    memcpy(&type, data + *offset, 1);
+    memcpy(header, data + *offset, sizeof(icmpHead));
     
-    if (type == 0x00) {
+    if (header->type == 0x00) {
         typeString = "Reply";
     }
-    else if (type == 0x08) {
+    else if (header->type == 0x08) {
         typeString = "Request";
     }
     
@@ -208,27 +193,25 @@ void readICMP(uint8_t *data, uint32_t *offset) {
  * Output: print to screen header information
  */
 void readUDP(uint8_t *data, uint32_t *offset) {
-    uint16_t srcPort;
-    uint16_t destPort;
-    
-    memcpy(&srcPort, data + *offset, 2);
-    memcpy(&destPort, data + *offset + 2, 2);
+    struct udpHead *header = malloc(sizeof(struct udpHead));
+
+    memcpy(header, data + *offset, sizeof(struct udpHead));
     
     fprintf(stdout, "    UDP Hearder\n");
     
     // DNS port is 53
-    if (srcPort == 53) {
+    if (ntohs(header->srcPort) == 53) {
         fprintf(stdout, "       Source Port:  DNS\n");
     }
     else {
-        fprintf(stdout, "       Source Port:  %u\n", srcPort);
+        fprintf(stdout, "       Source Port:  %u\n", ntohs(header->srcPort);
     }
     
-    if (destPort == 53) {
+    if (ntohs(header->destPort) == 53) {
         fprintf(stdout, "       Dest Port:  DNS\n\n");
     }
     else {
-        fprintf(stdout, "       Dest Port:  %u\n\n", destPort);
+        fprintf(stdout, "       Dest Port:  %u\n\n", ntohs(header->destPort));
     }
     
     return;
@@ -238,17 +221,82 @@ void readUDP(uint8_t *data, uint32_t *offset) {
  * Function to read TCP headers
  */
 void readTCP(uint8_t *data, uint32_t *offset) {
+    struct tcpHead *header = malloc(sizeof(struct tcpHead));
+    char *synFlag = "No", *rstFlag = "No", *finFlag = "No", *ackFlag = "No";
     
+    memcpy(header, data + *offset, sizeof(struct tcpHead));
+    
+    if (header->flags & 0x02) {
+        synFlag = "Yes";
+    }
+    if (header->flags & 0x04) {
+        rstFlag = "Yes";
+    }
+    if (header->flags & 0x01) {
+        finFlag = "Yes";
+    }
+    if (header->flags & 0x10) {
+        ackFlag = "Yes";
+    }
+    
+    fprintf(stdout, "   TCP Header\n")
+    fprintf(stdout, "       Source Port:  %u\n", ntohs(header->srcPort));
+    fprintf(stdout, "       Dest Port:  %u\n", ntohs(header->destPort));
+    fprintf(stdout, "       Sequence Number: %u\n", ntohl(header->seqNum));
+    fprintf(stdout, "       ACL Num: %u\n", ntohl(header->ackNum));
+    fprintf(stdout, "       Data Offset (bytes): %u\n", (header->dataOff_reserv & 0xF0) >> 4);
+    fprintf(stdout, "       SYN Flag: %s\n", synFlag);
+    fprintf(stdout, "       RST Flag: %s\n", rstFlag);
+    fprintf(stdout, "       FIN Flag: %s\n", finFlag);
+    fprintf(stdout, "       ACK Flag: %s\n", ackFlag);
+    fprintf(stdout, "       Window Size: %u", ntohs(header->windowSize));
+    fprintf(stdout, "       Checksum: \n\n"); //something
+    
+    return;
 }
 
 /*
  * Function to read IP frame headers
  */
 int readIP(uint8_t *data, uint32_t *offset) {
+    struct ipHead *header = malloc(sizeof(struct ipHead));
+    char *prot;
+    int nextPack;
     
+    memcpy(header, data + *offset, sizeof(struct ipHead));
+
+    if (header->protocol == 6) {
+        prot = "TCP";
+        nextPack = TCP_PACK;
+    }
+    else if (header->protocol == 1) {
+        prot = "ICMP";
+        nextPack = ICMP_PACK;
+    }
+    else if (header->protocol == 17) {
+        prot = "UDP";
+        nextPack = UDP_PACK
+    }
+    else {
+        prot = "Other";
+        nextPack = 0;
+    }
+
+    fprintf(stdout, "	IP Header\n");
+    fprintf(stdout, "		IP Version: %u\n", (header->version_IHL & 0xF0) >> 4);
+    fprintf(stdout, "		Header Len(bytes): %u\n", header->version_IHL & 0x0F);
+    fprintf(stdout, "		TOS subfields:\n");
+    fprintf(stdout, "		   Diffserv bits: %u\n", (ntohs(header->id) & 0xFC) >> 2);
+    fprintf(stdout, "		   ECN Bits: %u\n", ntohs(header->id) & 0x3);
+    fprintf(stdout, "		TTL: %u\n", header->ttl);
+    fprintf(stdout, "		Protocol: %s\n", prot); 
+    fprintf(stdout, "       Checksum: \n"); //something
+    fprintf(stdout, "       Sender IP: %s\n", inet_ntoa(header->src));
+    fprintf(stdout, "       Dest IP: %s\n\n", inet_ntoa(header-dest));
     
+    *offset += header->version_IHL & 0x0F;
     
-    return (1);
+    return (nextPack);
 }
 
 /* 

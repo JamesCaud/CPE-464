@@ -44,7 +44,6 @@
 #define UDP_PACK 8
 #define ICMP_PACK 9
 
-
 /*
  * Structs: All headers for Ethernet, ARP, UDP, ICMP, IP, and TCP 
  */
@@ -111,7 +110,6 @@ struct pseudoHead {
     uint8_t prot;
     uint16_t len;
 };
-
 
 /*
  * Function to read ethernet frame headers
@@ -268,7 +266,7 @@ void readTCP(uint8_t *data, uint32_t *offset) {
     // calculate checksum and evaluate
     chkSum = header->tcpChecksum;
     memcpy(data + 16, &cover0, 16);
-    if (chkSum == (uint16_t)(answer = checksum((unsigned short *)data - 12, \
+    if (chkSum == (uint16_t)(answer = in_cksum((unsigned short *)data - 12, \
      (int)(12 + pseudo.len)))) {
         *check = "Correct";
     }
